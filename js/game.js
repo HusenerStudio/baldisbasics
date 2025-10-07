@@ -341,8 +341,34 @@ const Game = {
             }
         }
         
-        // Cull expired effects
+        // Update and cull effects (e.g., BSODA spray)
         const now = performance.now();
+        for (const e of this.effects) {
+            if (e.type === 'bsoda') {
+                // Move spray forward
+                e.x += e.vx;
+                e.y += e.vy;
+                e.remaining -= Math.hypot(e.vx, e.vy);
+
+                // Stop spray if it hits a wall
+                if (!GameMap.isWalkable(e.x, e.y)) {
+                    e.expire = 0;
+                }
+
+                // Push characters on hit
+                const hitBaldi = this.rectsOverlap(e.x, e.y, e.w, e.h, this.baldi.x, this.baldi.y, this.baldi.width, this.baldi.height);
+                const hitPrincipal = this.rectsOverlap(e.x, e.y, e.w, e.h, this.principal.x, this.principal.y, this.principal.width, this.principal.height);
+                const strength = 24; // knockback pixels per hit frame
+                if (hitBaldi) this.applyKnockback(this.baldi, e.vx, e.vy, strength);
+                if (hitPrincipal) this.applyKnockback(this.principal, e.vx, e.vy, strength);
+
+                // End if max travel reached
+                if (e.remaining <= 0) {
+                    e.expire = 0;
+                }
+            }
+        }
+        // Cull expired
         this.effects = this.effects.filter(e => e.expire > now);
 
         // Update camera to follow player
@@ -424,7 +450,7 @@ const Game = {
         // Render active effects (e.g., BSODA spray)
         for (const eff of this.effects) {
             if (eff.type === 'bsoda') {
-                this.ctx.drawImage(Assets.images.bsodaSpray, eff.x, eff.y, 32, 32);
+                this.ctx.drawImage(Assets.images.bsodaSpray, eff.x, eff.y, eff.w, eff.h);
             }
         }
         
@@ -485,7 +511,21 @@ const Game = {
         // If holding BSODA, use it to spawn spray
         if (this.player.currentItem === 'bsoda') {
             const now = performance.now();
-            this.effects.push({ type: 'bsoda', x: this.player.x, y: this.player.y, expire: now + 800 });
+            const dir = this.player.facing || { x: 1, y: 0 };
+            const speed = 8; // pixels per frame
+            const w = 20, h = 20;
+            const startX = this.player.x + dir.x * 24;
+            const startY = this.player.y + dir.y * 24;
+            this.effects.push({
+                type: 'bsoda',
+                x: startX,
+                y: startY,
+                vx: dir.x * speed,
+                vy: dir.y * speed,
+                w, h,
+                expire: now + 600,
+                remaining: 300 // total travel distance in pixels
+            });
             this.player.currentItem = null;
             this.updateUI();
             return;
@@ -495,6 +535,21 @@ const Game = {
         if (this.player.useItem()) {
             this.updateUI();
         }
+    },
+
+    // Axis-aligned bounding box overlap
+    rectsOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+    },
+
+    // Apply knockback to an entity respecting walkable tiles
+    applyKnockback(entity, vx, vy, strength) {
+        const dx = Math.sign(vx) * strength;
+        const dy = Math.sign(vy) * strength;
+        const newX = entity.x + dx;
+        const newY = entity.y + dy;
+        if (GameMap.isWalkable(newX, entity.y)) entity.x = newX;
+        if (GameMap.isWalkable(entity.x, newY)) entity.y = newY;
     },
     
     // Show math problem

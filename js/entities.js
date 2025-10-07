@@ -30,6 +30,8 @@ class Player extends Entity {
         this.stamina = 100;
         this.maxStamina = 100;
         this.running = false;
+        // Direction the player is facing (unit vector)
+        this.facing = { x: 1, y: 0 };
     }
     
     update(keys) {
@@ -62,6 +64,13 @@ class Player extends Entity {
         
         if (GameMap.isWalkable(this.x, newY)) {
             this.y = newY;
+        }
+
+        // Update facing direction when moving
+        if (dx !== 0 || dy !== 0) {
+            const mag = Math.hypot(dx, dy) || 1;
+            this.facing.x = dx / mag;
+            this.facing.y = dy / mag;
         }
         
         // Check for notebook collection
