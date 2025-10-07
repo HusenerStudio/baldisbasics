@@ -8,9 +8,11 @@ const GameMap = {
     CARPET: 4,
     
     tileSize: 32,
-    width: 35,
-    height: 25,
+    width: 50,
+    height: 35,
     grid: [],
+    // Track door open/close state keyed by "x,y"
+    doorStates: {},
     notebookPositions: [],
     roomTypes: {
         CLASSROOM: 'classroom',
@@ -23,6 +25,7 @@ const GameMap = {
     init() {
         this.generateMap();
         this.placeNotebooks();
+        this.initDoorStates();
     },
     
     // Generate the school map
@@ -52,12 +55,16 @@ const GameMap = {
         this.buildRoom(10, 1, 6, 6, 'classroom'); // Classroom 2
         this.buildRoom(18, 1, 6, 6, 'classroom'); // Classroom 3
         this.buildRoom(26, 1, 7, 6, 'classroom'); // Classroom 4
+        this.buildRoom(34, 1, 7, 6, 'classroom'); // Classroom 5 (new)
+        this.buildRoom(42, 1, 7, 6, 'classroom'); // Classroom 6 (new)
         
         // Build classroom walls - Bottom row
         this.buildRoom(1, 17, 6, 6, 'classroom'); // Classroom 5
         this.buildRoom(10, 17, 6, 6, 'classroom'); // Classroom 6
         this.buildRoom(18, 17, 6, 6, 'classroom'); // Classroom 7
         this.buildRoom(26, 17, 7, 6, 'classroom'); // Classroom 8
+        this.buildRoom(34, 17, 7, 6, 'classroom'); // Classroom 9 (new)
+        this.buildRoom(42, 17, 7, 6, 'classroom'); // Classroom 10 (new)
         
         // Build special rooms - Middle left
         this.buildRoom(1, 9, 6, 6, 'principal'); // Principal's Office
@@ -71,22 +78,67 @@ const GameMap = {
         this.grid[6][13] = this.DOOR; // Classroom 2
         this.grid[6][21] = this.DOOR; // Classroom 3
         this.grid[6][29] = this.DOOR; // Classroom 4
+        this.grid[6][37] = this.DOOR; // Classroom 5 (new)
+        this.grid[6][45] = this.DOOR; // Classroom 6 (new)
         
         // Bottom row doors (place on top wall of each bottom classroom)
         this.grid[17][4] = this.DOOR; // Classroom 5
         this.grid[17][13] = this.DOOR; // Classroom 6
         this.grid[17][21] = this.DOOR; // Classroom 7
         this.grid[17][29] = this.DOOR; // Classroom 8
+        this.grid[17][37] = this.DOOR; // Classroom 9 (new)
+        this.grid[17][45] = this.DOOR; // Classroom 10 (new)
         
         // Special room doors (replace wall tiles on room boundary)
         this.grid[12][6] = this.DOOR; // Principal's Office (right wall door)
         this.grid[12][18] = this.DOOR; // Cafeteria entrance (left wall door)
         
-        // Add main entrance/exit
-        this.grid[this.height - 1][17] = this.EXIT;
+        // Add main entrance/exit (center bottom)
+        this.grid[this.height - 1][Math.floor(this.width / 2)] = this.EXIT;
         
         // Add some internal hallway details
         this.addHallwayDetails();
+    },
+
+    // Initialize doorStates for all DOOR tiles
+    initDoorStates() {
+        this.doorStates = {};
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                if (this.grid[y][x] === this.DOOR) {
+                    const key = `${x},${y}`;
+                    this.doorStates[key] = { open: false, closeTimeout: null };
+                }
+            }
+        }
+    },
+
+    // When player steps on a door tile, open it and auto-close after delay
+    maybeActivateDoor(px, py) {
+        const gridX = Math.floor(px / this.tileSize);
+        const gridY = Math.floor(py / this.tileSize);
+        if (gridX < 0 || gridY < 0 || gridX >= this.width || gridY >= this.height) return;
+        if (this.grid[gridY][gridX] !== this.DOOR) return;
+        const key = `${gridX},${gridY}`;
+        const state = this.doorStates[key];
+        if (!state) return;
+        if (!state.open) {
+            state.open = true;
+            // Play open sound
+            try {
+                Assets.sounds.doorOpen && Assets.sounds.doorOpen.play().catch(()=>{});
+            } catch {}
+        }
+        // Reset any pending close and schedule a new one
+        if (state.closeTimeout) {
+            clearTimeout(state.closeTimeout);
+        }
+        state.closeTimeout = setTimeout(() => {
+            state.open = false;
+            try {
+                Assets.sounds.doorClose && Assets.sounds.doorClose.play().catch(()=>{});
+            } catch {}
+        }, 1200);
     },
     
     // Helper function to build a rectangular room
@@ -139,11 +191,16 @@ const GameMap = {
             {x: 13, y: 3}, // Classroom 2
             {x: 21, y: 3}, // Classroom 3
             {x: 29, y: 3}, // Classroom 4
+            {x: 37, y: 3}, // Classroom 5 (new)
+            {x: 45, y: 3}, // Classroom 6 (new)
             
             // Bottom row classrooms
             {x: 4, y: 20}, // Classroom 5
             {x: 13, y: 20}, // Classroom 6
             {x: 21, y: 20}, // Classroom 7
+            {x: 29, y: 20}, // Classroom 8
+            {x: 37, y: 20}, // Classroom 9 (new)
+            {x: 45, y: 20}, // Classroom 10 (new)
             
             // Special locations
             {x: 25, y: 12}, // Cafeteria
@@ -206,7 +263,15 @@ const GameMap = {
                         ctx.drawImage(Assets.images.wall, x * this.tileSize, y * this.tileSize);
                         break;
                     case this.DOOR:
-                        ctx.drawImage(Assets.images.door, x * this.tileSize, y * this.tileSize);
+                        {
+                            const key = `${x},${y}`;
+                            const state = this.doorStates[key];
+                            const img = (state && state.open) ? Assets.images.doorOpen : Assets.images.doorClosed;
+                            // Draw floor as the background so door tile is not filled with brick
+                            ctx.drawImage(Assets.images.floor, x * this.tileSize, y * this.tileSize);
+                            // Draw door on top
+                            ctx.drawImage(img, x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+                        }
                         break;
                     case this.EXIT:
                         ctx.drawImage(Assets.images.exitDoor, x * this.tileSize, y * this.tileSize);

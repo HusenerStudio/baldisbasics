@@ -10,6 +10,8 @@ const Game = {
     baldi: null,
     principal: null,
     items: [],
+    machines: [],
+    effects: [],
     mathProblemActive: false,
     // Multiplayer state
     mode: 'single', // 'single' | 'multi'
@@ -48,10 +50,9 @@ const Game = {
         window.addEventListener('keydown', (e) => {
             this.keys[e.key] = true;
             
-            // Use item with E key
+            // Use item or purchase with E key
             if (e.key === 'e' && this.running) {
-                this.player.useItem();
-                this.updateUI();
+                this.handleUseOrPurchase();
             }
         });
         
@@ -158,8 +159,7 @@ const Game = {
         // Use item button for mobile
         document.getElementById('use-item-button').addEventListener('click', () => {
             if (this.running) {
-                this.player.useItem();
-                this.updateUI();
+                this.handleUseOrPurchase();
             }
         });
         
@@ -298,6 +298,12 @@ const Game = {
             new Item(21 * 32, 8 * 32, 'quarter'), // Hallway
             new Item(29 * 32, 20 * 32, 'energyBar') // Classroom
         ];
+
+        // Place vending machines in cafeteria
+        this.machines = [
+            new Machine(22 * 32, 11 * 32, 'zesty'), // Zesty Bar machine
+            new Machine(30 * 32, 11 * 32, 'bsoda')  // BSODA machine
+        ];
         
         // Update UI
         this.updateUI();
@@ -321,6 +327,8 @@ const Game = {
         if (this.mathProblemActive) return;
         
         this.player.update(this.keys);
+        // Activate doors when player steps onto them (handles open/close + sounds)
+        GameMap.maybeActivateDoor(this.player.x, this.player.y);
         this.baldi.update(this.player);
         this.principal.update(this.player);
         
@@ -333,6 +341,10 @@ const Game = {
             }
         }
         
+        // Cull expired effects
+        const now = performance.now();
+        this.effects = this.effects.filter(e => e.expire > now);
+
         // Update camera to follow player
         this.updateCamera();
 
@@ -387,7 +399,12 @@ const Game = {
         
         // Render map
         GameMap.render(this.ctx);
-        
+
+        // Render machines
+        for (const m of this.machines) {
+            m.render(this.ctx);
+        }
+
         // Render items
         for (const item of this.items) {
             item.render(this.ctx);
@@ -403,6 +420,13 @@ const Game = {
         }
         this.baldi.render(this.ctx);
         this.principal.render(this.ctx);
+
+        // Render active effects (e.g., BSODA spray)
+        for (const eff of this.effects) {
+            if (eff.type === 'bsoda') {
+                this.ctx.drawImage(Assets.images.bsodaSpray, eff.x, eff.y, 32, 32);
+            }
+        }
         
         // Restore context state
         this.ctx.restore();
@@ -442,6 +466,36 @@ const Game = {
         document.getElementById('notebooks').textContent = this.player.notebooks;
         document.getElementById('current-item').textContent = this.player.currentItem ? this.player.currentItem : 'No item';
     },
+
+    // Handle using item or purchasing from vending machines
+    handleUseOrPurchase() {
+        if (!this.player) return;
+        // If holding a quarter and colliding with a machine, purchase from that machine
+        if (this.player.currentItem === 'quarter') {
+            for (const m of this.machines) {
+                if (this.player.collidesWith(m)) {
+                    // Purchase item based on machine type
+                    this.player.currentItem = (m.machineType === 'bsoda') ? 'bsoda' : 'energyBar';
+                    this.updateUI();
+                    return;
+                }
+            }
+        }
+
+        // If holding BSODA, use it to spawn spray
+        if (this.player.currentItem === 'bsoda') {
+            const now = performance.now();
+            this.effects.push({ type: 'bsoda', x: this.player.x, y: this.player.y, expire: now + 800 });
+            this.player.currentItem = null;
+            this.updateUI();
+            return;
+        }
+
+        // Otherwise, use regular items (e.g., energyBar)
+        if (this.player.useItem()) {
+            this.updateUI();
+        }
+    },
     
     // Show math problem
     showMathProblem() {
@@ -467,6 +521,19 @@ const Game = {
         `;
         
         document.querySelector('.game-container').appendChild(overlay);
+
+        // Start looping learn music when math is active
+        if (Assets && Assets.sounds && Assets.sounds.musLearn) {
+            try {
+                const learn = Assets.sounds.musLearn;
+                learn.loop = true;
+                learn.currentTime = 0;
+                // Attempt play; browsers may require prior user interaction
+                learn.play().catch(() => {/* ignore autoplay restrictions */});
+            } catch (e) {
+                console.warn('Failed to start mus_Learn', e);
+            }
+        }
         
         // Focus on input
         setTimeout(() => {
@@ -477,13 +544,34 @@ const Game = {
         document.getElementById('submit-answer').addEventListener('click', () => {
             const userAnswer = parseInt(document.getElementById('math-answer').value);
             
+            // Stop learn music and play hang once when closing math
+            const stopLearnAndPlayHang = () => {
+                try {
+                    if (Assets && Assets.sounds && Assets.sounds.musLearn) {
+                        const learn = Assets.sounds.musLearn;
+                        learn.pause();
+                        learn.currentTime = 0;
+                    }
+                    if (Assets && Assets.sounds && Assets.sounds.musHang) {
+                        const hang = Assets.sounds.musHang;
+                        hang.loop = false;
+                        hang.currentTime = 0;
+                        hang.play().catch(() => {/* ignore autoplay restrictions */});
+                    }
+                } catch (e) {
+                    console.warn('Audio transition error', e);
+                }
+            };
+
             if (userAnswer === answer) {
                 // Correct answer
+                stopLearnAndPlayHang();
                 overlay.remove();
                 this.mathProblemActive = false;
             } else {
                 // Wrong answer - make Baldi angry
                 this.baldi.makeAngry();
+                stopLearnAndPlayHang();
                 overlay.remove();
                 this.mathProblemActive = false;
             }

@@ -236,11 +236,25 @@ class Item extends Entity {
             case 'energyBar':
                 sprite = Assets.images.energyBar;
                 break;
+            case 'bsoda':
+                sprite = Assets.images.bsoda;
+                break;
             default:
                 sprite = Assets.images.quarter;
         }
         
         super(x, y, 32, 32, sprite);
         this.type = type;
+    }
+}
+
+// Static vending machine entity
+class Machine extends Entity {
+    constructor(x, y, machineType) {
+        const sprite = machineType === 'bsoda'
+            ? Assets.images.bsodaMachine
+            : Assets.images.zestyMachine;
+        super(x, y, 32, 32, sprite);
+        this.machineType = machineType; // 'bsoda' | 'zesty'
     }
 }
