@@ -18,6 +18,7 @@ const Game = {
     roomCode: null,
     players: {}, // remote players by id
     lastNetSend: 0,
+    playerCount: 0,
     
     // Camera system
     camera: {
@@ -58,10 +59,14 @@ const Game = {
             this.keys[e.key] = false;
         });
         
-        // Start button (single player)
+        // Start button (single or multiplayer depending on mode)
         document.getElementById('start-button').addEventListener('click', () => {
-            this.mode = 'single';
-            this.startGame();
+            if (this.mode === 'multi' && this.roomCode) {
+                this.startGame();
+            } else {
+                this.mode = 'single';
+                this.startGame();
+            }
         });
 
         // Multiplayer controls
@@ -177,56 +182,83 @@ const Game = {
         };
         this.socket.onmessage = (ev) => {
             let msg;
-            try { msg = JSON.parse(ev.data); } catch { return; }
-            switch (msg.type) {
-                case 'roomCreated': {
-                    this.mode = 'multi';
-                    this.roomCode = msg.roomCode;
-                    this.playerId = msg.playerId;
-                    document.getElementById('invite-code').textContent = this.roomCode;
-                    this.startGame();
-                    break;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            const t = msg.type;
+            if (t === 'roomCreated') {
+                this.mode = 'multi';
+                this.roomCode = msg.roomCode;
+                this.playerId = msg.playerId;
+                document.getElementById('invite-code').textContent = this.roomCode;
+                // Keep start screen visible so host can share the code
+                // Change start button label to indicate multiplayer start
+                const startBtn = document.getElementById('start-button');
+                if (startBtn) startBtn.textContent = 'Start Multiplayer';
+                // Host starts with 1 connected (self)
+                this.playerCount = 1;
+                this.updatePlayerCountUI();
+                this.addRoomEvent(`Room ${this.roomCode} created. Waiting for players…`);
+            } else if (t === 'joined') {
+                this.mode = 'multi';
+                this.roomCode = msg.roomCode;
+                this.playerId = msg.playerId;
+                this.startGame();
+            } else if (t === 'roomInfo') {
+                // Server informs current player count
+                if (typeof msg.count === 'number') {
+                    this.playerCount = msg.count;
+                    this.updatePlayerCountUI();
+                    this.addRoomEvent(`Players in room: ${msg.count}`);
                 }
-                case 'joined': {
-                    this.mode = 'multi';
-                    this.roomCode = msg.roomCode;
-                    this.playerId = msg.playerId;
-                    this.startGame();
-                    break;
+            } else if (t === 'playerJoined') {
+                // Create remote player placeholder; position will update soon
+                const id = msg.playerId;
+                if (!this.players[id]) {
+                    this.players[id] = new Entity(17 * 32, 12 * 32, 32, 32, Assets.images.player);
                 }
-                case 'playerJoined': {
-                    // Create remote player placeholder; position will update soon
-                    const id = msg.playerId;
-                    if (!this.players[id]) {
-                        this.players[id] = new Entity(17 * 32, 12 * 32, 32, 32, Assets.images.player);
-                    }
-                    break;
+                // Update UI counter and log
+                this.playerCount = Math.max(1, this.playerCount + 1);
+                this.updatePlayerCountUI();
+                this.addRoomEvent(`Player ${id} joined`);
+            } else if (t === 'playerUpdate') {
+                const id = msg.playerId;
+                if (id === this.playerId) return; // ignore echo
+                if (!this.players[id]) {
+                    this.players[id] = new Entity(msg.x || 17 * 32, msg.y || 12 * 32, 32, 32, Assets.images.player);
+                } else {
+                    this.players[id].x = msg.x;
+                    this.players[id].y = msg.y;
                 }
-                case 'playerUpdate': {
-                    const id = msg.playerId;
-                    if (id === this.playerId) break; // ignore echo
-                    if (!this.players[id]) {
-                        this.players[id] = new Entity(msg.x || 17 * 32, msg.y || 12 * 32, 32, 32, Assets.images.player);
-                    } else {
-                        this.players[id].x = msg.x;
-                        this.players[id].y = msg.y;
-                    }
-                    break;
-                }
-                case 'playerLeft': {
-                    delete this.players[msg.playerId];
-                    break;
-                }
-                case 'error': {
-                    alert(msg.message || 'Multiplayer error');
-                    break;
-                }
+            } else if (t === 'playerLeft') {
+                delete this.players[msg.playerId];
+                this.playerCount = Math.max(0, this.playerCount - 1);
+                this.updatePlayerCountUI();
+                this.addRoomEvent(`Player ${msg.playerId} left`);
+            } else if (t === 'error') {
+                alert(msg.message || 'Multiplayer error');
             }
         };
         this.socket.onclose = () => {
             // Reset multiplayer state on disconnect
             this.socket = null;
         };
+    },
+
+    // Update the player count display on the start screen, if present
+    updatePlayerCountUI() {
+        const el = document.getElementById('player-count');
+        if (el) el.textContent = String(this.playerCount);
+    },
+
+    // Append a room event message to the start screen events list (keeps last 5)
+    addRoomEvent(message) {
+        const list = document.getElementById('mp-events-list');
+        if (!list) return;
+        const li = document.createElement('li');
+        li.textContent = message;
+        list.appendChild(li);
+        while (list.children.length > 5) {
+            list.removeChild(list.firstChild);
+        }
     },
     
     // Show start screen

@@ -50,6 +50,9 @@ wss.on('connection', (ws) => {
         ws.meta.roomCode = roomCode;
         ws.meta.id = id;
         ws.send(JSON.stringify({ type: 'roomCreated', roomCode, playerId: id }));
+        // Send initial room info (player count)
+        ws.send(JSON.stringify({ type: 'roomInfo', roomCode, count: 1 }));
+        console.log(`[ROOM] Created room ${roomCode}; host=${id}`);
         break;
       }
 
@@ -58,10 +61,12 @@ wss.on('connection', (ws) => {
         const room = rooms.get(roomCode);
         if (!room) {
           ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
+          console.log(`[ROOM] Join failed; code=${roomCode} not found`);
           break;
         }
         if (room.clients.size >= 5) {
           ws.send(JSON.stringify({ type: 'error', message: 'Room is full' }));
+          console.log(`[ROOM] Join failed; code=${roomCode} is full (${room.clients.size})`);
           break;
         }
         const id = genId();
@@ -69,8 +74,11 @@ wss.on('connection', (ws) => {
         ws.meta.roomCode = roomCode;
         ws.meta.id = id;
         ws.send(JSON.stringify({ type: 'joined', roomCode, playerId: id }));
+        // Send room info to the joiner (current player count)
+        ws.send(JSON.stringify({ type: 'roomInfo', roomCode, count: room.clients.size }));
         // Inform others
         broadcast(roomCode, { type: 'playerJoined', playerId: id }, ws);
+        console.log(`[ROOM] Player joined room ${roomCode}; player=${id}; size=${room.clients.size}`);
         break;
       }
 
@@ -101,13 +109,17 @@ wss.on('connection', (ws) => {
     if (!room) return;
     room.clients.delete(ws);
     broadcast(roomCode, { type: 'playerLeft', playerId: id }, ws);
+    console.log(`[ROOM] Player left room ${roomCode}; player=${id}; size=${room.clients.size}`);
     // If room empty, delete it
     if (room.clients.size === 0) {
       rooms.delete(roomCode);
+      console.log(`[ROOM] Room ${roomCode} closed (empty)`);
     } else if (room.host === ws) {
       // If host disconnected, pick a new host arbitrarily
       const firstClient = room.clients.keys().next().value;
       room.host = firstClient || null;
+      const newHostId = firstClient ? room.clients.get(firstClient)?.id : 'none';
+      console.log(`[ROOM] Room ${roomCode} new host=${newHostId}`);
     }
   });
 });
