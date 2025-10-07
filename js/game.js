@@ -48,6 +48,80 @@ const Game = {
             this.startGame();
         });
         
+        // Mobile joystick controls
+        this.setupJoystick();
+    },
+    
+    // Setup mobile joystick
+    setupJoystick() {
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickStick = document.getElementById('joystick-stick');
+        let isDragging = false;
+        let centerX, centerY;
+        
+        // Reset joystick position
+        const resetJoystick = () => {
+            joystickStick.style.left = '25px';
+            joystickStick.style.top = '25px';
+            this.keys.ArrowUp = false;
+            this.keys.ArrowDown = false;
+            this.keys.ArrowLeft = false;
+            this.keys.ArrowRight = false;
+        };
+        
+        resetJoystick();
+        
+        // Handle touch start
+        joystickBase.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            centerX = joystickBase.offsetLeft + 50;
+            centerY = joystickBase.offsetTop + 50;
+        });
+        
+        // Handle touch move
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            let deltaX = touch.clientX - centerX;
+            let deltaY = touch.clientY - centerY;
+            
+            // Limit joystick movement to the base radius
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxDistance = 25;
+            
+            if (distance > maxDistance) {
+                deltaX = deltaX * maxDistance / distance;
+                deltaY = deltaY * maxDistance / distance;
+            }
+            
+            // Update joystick position
+            joystickStick.style.left = (50 + deltaX - 25) + 'px';
+            joystickStick.style.top = (50 + deltaY - 25) + 'px';
+            
+            // Set movement keys based on joystick position
+            this.keys.ArrowUp = deltaY < -10;
+            this.keys.ArrowDown = deltaY > 10;
+            this.keys.ArrowLeft = deltaX < -10;
+            this.keys.ArrowRight = deltaX > 10;
+        });
+        
+        // Handle touch end
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+            resetJoystick();
+        });
+        
+        // Use item button for mobile
+        document.getElementById('use-item-button').addEventListener('click', () => {
+            if (this.running) {
+                this.player.useItem();
+                this.updateUI();
+            }
+        });
+        
         // Restart button
         document.getElementById('restart-button').addEventListener('click', () => {
             this.hideAllScreens();
