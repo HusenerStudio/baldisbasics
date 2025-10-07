@@ -1,0 +1,5 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <rect x="6" y="8" width="20" height="16" fill="#f39c12" stroke="#d35400" stroke-width="2"/>
+    <rect x="8" y="10" width="16" height="12" fill="#e67e22"/>
+    <text x="16" y="20" font-size="8" text-anchor="middle" fill="#ffffff">ENERGY</text>
+</svg>
