@@ -2,8 +2,8 @@
 const Game = {
     canvas: null,
     ctx: null,
-    width: 800,
-    height: 600,
+    width: 1120,
+    height: 800,
     running: false,
     keys: {},
     player: null,
@@ -11,6 +11,21 @@ const Game = {
     principal: null,
     items: [],
     mathProblemActive: false,
+    // Multiplayer state
+    mode: 'single', // 'single' | 'multi'
+    socket: null,
+    playerId: null,
+    roomCode: null,
+    players: {}, // remote players by id
+    lastNetSend: 0,
+    
+    // Camera system
+    camera: {
+        x: 0,
+        y: 0,
+        zoom: 2.0, // Closer zoom level
+        smoothing: 0.1 // Camera smoothing factor
+    },
     
     // Initialize the game
     init() {
@@ -43,9 +58,30 @@ const Game = {
             this.keys[e.key] = false;
         });
         
-        // Start button
+        // Start button (single player)
         document.getElementById('start-button').addEventListener('click', () => {
+            this.mode = 'single';
             this.startGame();
+        });
+
+        // Multiplayer controls
+        const createBtn = document.getElementById('create-mp');
+        const joinBtn = document.getElementById('join-button');
+        const joinInput = document.getElementById('join-code');
+        const inviteCodeEl = document.getElementById('invite-code');
+
+        createBtn.addEventListener('click', () => {
+            this.connectSocket(() => {
+                this.socket.send(JSON.stringify({ type: 'createRoom' }));
+            });
+        });
+
+        joinBtn.addEventListener('click', () => {
+            const code = (joinInput.value || '').trim();
+            if (!code) return;
+            this.connectSocket(() => {
+                this.socket.send(JSON.stringify({ type: 'joinRoom', roomCode: code }));
+            });
         });
         
         // Mobile joystick controls
@@ -128,6 +164,70 @@ const Game = {
             this.showStartScreen();
         });
     },
+
+    // Connect to multiplayer server
+    connectSocket(onOpenSend) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            onOpenSend && onOpenSend();
+            return;
+        }
+        this.socket = new WebSocket('ws://localhost:8080');
+        this.socket.onopen = () => {
+            onOpenSend && onOpenSend();
+        };
+        this.socket.onmessage = (ev) => {
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch { return; }
+            switch (msg.type) {
+                case 'roomCreated': {
+                    this.mode = 'multi';
+                    this.roomCode = msg.roomCode;
+                    this.playerId = msg.playerId;
+                    document.getElementById('invite-code').textContent = this.roomCode;
+                    this.startGame();
+                    break;
+                }
+                case 'joined': {
+                    this.mode = 'multi';
+                    this.roomCode = msg.roomCode;
+                    this.playerId = msg.playerId;
+                    this.startGame();
+                    break;
+                }
+                case 'playerJoined': {
+                    // Create remote player placeholder; position will update soon
+                    const id = msg.playerId;
+                    if (!this.players[id]) {
+                        this.players[id] = new Entity(17 * 32, 12 * 32, 32, 32, Assets.images.player);
+                    }
+                    break;
+                }
+                case 'playerUpdate': {
+                    const id = msg.playerId;
+                    if (id === this.playerId) break; // ignore echo
+                    if (!this.players[id]) {
+                        this.players[id] = new Entity(msg.x || 17 * 32, msg.y || 12 * 32, 32, 32, Assets.images.player);
+                    } else {
+                        this.players[id].x = msg.x;
+                        this.players[id].y = msg.y;
+                    }
+                    break;
+                }
+                case 'playerLeft': {
+                    delete this.players[msg.playerId];
+                    break;
+                }
+                case 'error': {
+                    alert(msg.message || 'Multiplayer error');
+                    break;
+                }
+            }
+        };
+        this.socket.onclose = () => {
+            // Reset multiplayer state on disconnect
+            this.socket = null;
+        };
+    },
     
     // Show start screen
     showStartScreen() {
@@ -148,21 +248,23 @@ const Game = {
         this.running = true;
         
         // Initialize map
-        Map.init();
+        GameMap.init();
         
-        // Create player
-        this.player = new Player(400, 300);
+        // Create player (spawn in main hallway)
+        this.player = new Player(17 * 32, 12 * 32);
         
-        // Create Baldi
-        this.baldi = new Baldi(200, 200);
+        // Create Baldi (spawn in a classroom)
+        this.baldi = new Baldi(4 * 32, 3 * 32);
         
-        // Create Principal
-        this.principal = new Principal(600, 400);
+        // Create Principal (spawn in principal's office)
+        this.principal = new Principal(4 * 32, 12 * 32);
         
-        // Create items
+        // Create items scattered around the school
         this.items = [
-            new Item(300, 400, 'quarter'),
-            new Item(500, 200, 'energyBar')
+            new Item(13 * 32, 8 * 32, 'quarter'), // Hallway
+            new Item(25 * 32, 12 * 32, 'energyBar'), // Cafeteria
+            new Item(21 * 32, 8 * 32, 'quarter'), // Hallway
+            new Item(29 * 32, 20 * 32, 'energyBar') // Classroom
         ];
         
         // Update UI
@@ -198,6 +300,45 @@ const Game = {
                 this.updateUI();
             }
         }
+        
+        // Update camera to follow player
+        this.updateCamera();
+
+        // Multiplayer: send local player updates (throttled)
+        if (this.mode === 'multi' && this.socket && this.socket.readyState === WebSocket.OPEN) {
+            const now = performance.now();
+            if (now - this.lastNetSend > 50) { // 20 Hz
+                this.socket.send(JSON.stringify({
+                    type: 'playerUpdate',
+                    x: this.player.x,
+                    y: this.player.y,
+                    running: this.player.running
+                }));
+                this.lastNetSend = now;
+            }
+        }
+    },
+    
+    // Update camera to follow player
+    updateCamera() {
+        if (!this.player) return;
+        
+        // Calculate target camera position (center player on screen)
+        const targetX = this.player.x - (this.width / this.camera.zoom) / 2;
+        const targetY = this.player.y - (this.height / this.camera.zoom) / 2;
+        
+        // Smooth camera movement
+        this.camera.x += (targetX - this.camera.x) * this.camera.smoothing;
+        this.camera.y += (targetY - this.camera.y) * this.camera.smoothing;
+        
+        // Keep camera within map bounds
+        const mapWidth = GameMap.width * GameMap.tileSize;
+        const mapHeight = GameMap.height * GameMap.tileSize;
+        const viewWidth = this.width / this.camera.zoom;
+        const viewHeight = this.height / this.camera.zoom;
+        
+        this.camera.x = Math.max(0, Math.min(this.camera.x, mapWidth - viewWidth));
+        this.camera.y = Math.max(0, Math.min(this.camera.y, mapHeight - viewHeight));
     },
     
     // Render game
@@ -205,8 +346,15 @@ const Game = {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
         
+        // Save context state
+        this.ctx.save();
+        
+        // Apply camera transformation
+        this.ctx.scale(this.camera.zoom, this.camera.zoom);
+        this.ctx.translate(-this.camera.x, -this.camera.y);
+        
         // Render map
-        Map.render(this.ctx);
+        GameMap.render(this.ctx);
         
         // Render items
         for (const item of this.items) {
@@ -215,10 +363,19 @@ const Game = {
         
         // Render entities
         this.player.render(this.ctx);
+        // Render remote players (multiplayer)
+        if (this.mode === 'multi') {
+            for (const [id, rp] of Object.entries(this.players)) {
+                rp && rp.render(this.ctx);
+            }
+        }
         this.baldi.render(this.ctx);
         this.principal.render(this.ctx);
         
-        // Render stamina bar
+        // Restore context state
+        this.ctx.restore();
+        
+        // Render UI elements (not affected by camera)
         this.renderStaminaBar();
     },
     

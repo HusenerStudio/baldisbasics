@@ -14,6 +14,7 @@ const Assets = {
         energyBar: 'textures/energy_bar.svg',
         wall: 'textures/wall.svg',
         floor: 'textures/floor.svg',
+        carpet: 'textures/Carpet.png',
         door: 'textures/door.svg',
         exitDoor: 'textures/exit_door.svg'
     },

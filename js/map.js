@@ -1,16 +1,23 @@
 // Map generation and rendering
-const Map = {
+const GameMap = {
     // Map tile types
     FLOOR: 0,
     WALL: 1,
     DOOR: 2,
     EXIT: 3,
+    CARPET: 4,
     
     tileSize: 32,
-    width: 25,
-    height: 19,
+    width: 35,
+    height: 25,
     grid: [],
     notebookPositions: [],
+    roomTypes: {
+        CLASSROOM: 'classroom',
+        PRINCIPAL: 'principal',
+        CAFETERIA: 'cafeteria',
+        HALLWAY: 'hallway'
+    },
     
     // Initialize the map
     init() {
@@ -20,7 +27,7 @@ const Map = {
     
     // Generate the school map
     generateMap() {
-        // Create empty grid
+        // Create empty grid filled with floors
         this.grid = Array(this.height).fill().map(() => Array(this.width).fill(this.FLOOR));
         
         // Add outer walls
@@ -34,52 +41,113 @@ const Map = {
             this.grid[y][this.width - 1] = this.WALL;
         }
         
-        // Add internal walls to create rooms and corridors
-        // Main hallway
-        for (let x = 5; x < this.width - 5; x++) {
-            this.grid[5][x] = this.WALL;
-            this.grid[this.height - 6][x] = this.WALL;
+        // Create main horizontal hallway (center of school)
+        const mainHallY = Math.floor(this.height / 2);
+        
+        // Create vertical hallway (left side)
+        const vertHallX = 8;
+        
+        // Build classroom walls - Top row
+        this.buildRoom(1, 1, 6, 6, 'classroom'); // Classroom 1
+        this.buildRoom(10, 1, 6, 6, 'classroom'); // Classroom 2
+        this.buildRoom(18, 1, 6, 6, 'classroom'); // Classroom 3
+        this.buildRoom(26, 1, 7, 6, 'classroom'); // Classroom 4
+        
+        // Build classroom walls - Bottom row
+        this.buildRoom(1, 17, 6, 6, 'classroom'); // Classroom 5
+        this.buildRoom(10, 17, 6, 6, 'classroom'); // Classroom 6
+        this.buildRoom(18, 17, 6, 6, 'classroom'); // Classroom 7
+        this.buildRoom(26, 17, 7, 6, 'classroom'); // Classroom 8
+        
+        // Build special rooms - Middle left
+        this.buildRoom(1, 9, 6, 6, 'principal'); // Principal's Office
+        
+        // Build cafeteria - Middle right (larger room)
+        this.buildRoom(18, 9, 14, 6, 'cafeteria'); // Cafeteria
+        
+        // Add doors to all rooms
+        // Top row doors (place on bottom wall of each top classroom)
+        this.grid[6][4] = this.DOOR; // Classroom 1
+        this.grid[6][13] = this.DOOR; // Classroom 2
+        this.grid[6][21] = this.DOOR; // Classroom 3
+        this.grid[6][29] = this.DOOR; // Classroom 4
+        
+        // Bottom row doors (place on top wall of each bottom classroom)
+        this.grid[17][4] = this.DOOR; // Classroom 5
+        this.grid[17][13] = this.DOOR; // Classroom 6
+        this.grid[17][21] = this.DOOR; // Classroom 7
+        this.grid[17][29] = this.DOOR; // Classroom 8
+        
+        // Special room doors (replace wall tiles on room boundary)
+        this.grid[12][6] = this.DOOR; // Principal's Office (right wall door)
+        this.grid[12][18] = this.DOOR; // Cafeteria entrance (left wall door)
+        
+        // Add main entrance/exit
+        this.grid[this.height - 1][17] = this.EXIT;
+        
+        // Add some internal hallway details
+        this.addHallwayDetails();
+    },
+    
+    // Helper function to build a rectangular room
+    buildRoom(startX, startY, width, height, roomType = 'classroom') {
+        // Fill interior with carpet for classrooms
+        if (roomType === 'classroom') {
+            for (let x = startX + 1; x < startX + width - 1; x++) {
+                for (let y = startY + 1; y < startY + height - 1; y++) {
+                    this.grid[y][x] = this.CARPET;
+                }
+            }
         }
         
-        // Vertical walls to create classrooms
-        for (let y = 1; y < 5; y++) {
-            this.grid[y][5] = this.WALL;
-            this.grid[y][10] = this.WALL;
-            this.grid[y][15] = this.WALL;
-            this.grid[y][20] = this.WALL;
+        // Top and bottom walls
+        for (let x = startX; x < startX + width; x++) {
+            this.grid[startY][x] = this.WALL;
+            this.grid[startY + height - 1][x] = this.WALL;
         }
         
-        for (let y = this.height - 5; y < this.height - 1; y++) {
-            this.grid[y][5] = this.WALL;
-            this.grid[y][10] = this.WALL;
-            this.grid[y][15] = this.WALL;
-            this.grid[y][20] = this.WALL;
+        // Left and right walls
+        for (let y = startY; y < startY + height; y++) {
+            this.grid[y][startX] = this.WALL;
+            this.grid[y][startX + width - 1] = this.WALL;
+        }
+    },
+    
+    // Add some hallway details and decorations
+    addHallwayDetails() {
+        // Add some lockers (represented as walls) along hallways
+        // Left hallway lockers
+        for (let y = 9; y < 15; y += 2) {
+            if (this.grid[y][9] === this.FLOOR) {
+                this.grid[y][9] = this.WALL;
+            }
         }
         
-        // Add doors to classrooms
-        this.grid[5][3] = this.DOOR;
-        this.grid[5][8] = this.DOOR;
-        this.grid[5][13] = this.DOOR;
-        this.grid[5][18] = this.DOOR;
-        this.grid[this.height - 6][3] = this.DOOR;
-        this.grid[this.height - 6][8] = this.DOOR;
-        this.grid[this.height - 6][13] = this.DOOR;
-        this.grid[this.height - 6][18] = this.DOOR;
-        
-        // Add exit door
-        this.grid[this.height - 1][this.width - 2] = this.EXIT;
+        // Right hallway lockers
+        for (let y = 9; y < 15; y += 2) {
+            if (this.grid[y][16] === this.FLOOR) {
+                this.grid[y][16] = this.WALL;
+            }
+        }
     },
     
     // Place notebooks around the map
     placeNotebooks() {
         this.notebookPositions = [
-            {x: 3, y: 2},
-            {x: 8, y: 2},
-            {x: 13, y: 2},
-            {x: 18, y: 2},
-            {x: 3, y: this.height - 3},
-            {x: 8, y: this.height - 3},
-            {x: 13, y: this.height - 3}
+            // Top row classrooms
+            {x: 4, y: 3}, // Classroom 1
+            {x: 13, y: 3}, // Classroom 2
+            {x: 21, y: 3}, // Classroom 3
+            {x: 29, y: 3}, // Classroom 4
+            
+            // Bottom row classrooms
+            {x: 4, y: 20}, // Classroom 5
+            {x: 13, y: 20}, // Classroom 6
+            {x: 21, y: 20}, // Classroom 7
+            
+            // Special locations
+            {x: 25, y: 12}, // Cafeteria
+            {x: 4, y: 12}   // Principal's Office (bonus notebook)
         ];
     },
     
@@ -142,6 +210,9 @@ const Map = {
                         break;
                     case this.EXIT:
                         ctx.drawImage(Assets.images.exitDoor, x * this.tileSize, y * this.tileSize);
+                        break;
+                    case this.CARPET:
+                        ctx.drawImage(Assets.images.carpet, x * this.tileSize, y * this.tileSize);
                         break;
                 }
             }

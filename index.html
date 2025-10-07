@@ -30,6 +30,19 @@
                 <button id="start-button">Start Game</button>
                 <p>Use WASD or arrow keys to move</p>
                 <p>Collect 7 notebooks and escape the school!</p>
+                <hr style="width:80%;margin:10px 0;border-color:#555;">
+                <h3 style="margin:10px 0;">Multiplayer</h3>
+                <div id="mp-controls" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                    <button id="create-mp">Create Multiplayer Game</button>
+                    <div id="invite-row" style="color:#fff;">
+                        Invite Code: <span id="invite-code">—</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input id="join-code" type="text" placeholder="Enter invite code" style="padding:8px;font-size:16px;border-radius:4px;border:1px solid #555;background:#111;color:#fff;">
+                        <button id="join-button">Join Game</button>
+                    </div>
+                    <small style="color:#ccc;">Up to 5 players. Host shares code.</small>
+                </div>
             </div>
         </div>
         <div id="game-over-screen" class="screen hidden">

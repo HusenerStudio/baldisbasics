@@ -9,7 +9,7 @@ class Entity {
     }
     
     render(ctx) {
-        ctx.drawImage(this.sprite, this.x, this.y);
+        ctx.drawImage(this.sprite, this.x, this.y, this.width, this.height);
     }
     
     // Check collision with another entity
@@ -56,23 +56,23 @@ class Player extends Entity {
         const newX = this.x + dx;
         const newY = this.y + dy;
         
-        if (Map.isWalkable(newX, this.y)) {
+        if (GameMap.isWalkable(newX, this.y)) {
             this.x = newX;
         }
         
-        if (Map.isWalkable(this.x, newY)) {
+        if (GameMap.isWalkable(this.x, newY)) {
             this.y = newY;
         }
         
         // Check for notebook collection
-        if (Map.hasNotebook(this.x, this.y)) {
-            Map.removeNotebook(this.x, this.y);
+        if (GameMap.hasNotebook(this.x, this.y)) {
+            GameMap.removeNotebook(this.x, this.y);
             this.notebooks++;
             Game.showMathProblem();
         }
         
         // Check if at exit
-        if (this.notebooks === 7 && Map.isAtExit(this.x, this.y)) {
+        if (this.notebooks === 7 && GameMap.isAtExit(this.x, this.y)) {
             Game.win();
         }
     }
@@ -130,11 +130,11 @@ class Baldi extends Entity {
                 const newX = this.x + moveX;
                 const newY = this.y + moveY;
                 
-                if (Map.isWalkable(newX, this.y)) {
+                if (GameMap.isWalkable(newX, this.y)) {
                     this.x = newX;
                 }
                 
-                if (Map.isWalkable(this.x, newY)) {
+                if (GameMap.isWalkable(this.x, newY)) {
                     this.y = newY;
                 }
             }
@@ -182,11 +182,11 @@ class Principal extends Entity {
             const newX = this.x + moveX;
             const newY = this.y + moveY;
             
-            if (Map.isWalkable(newX, this.y)) {
+            if (GameMap.isWalkable(newX, this.y)) {
                 this.x = newX;
             }
             
-            if (Map.isWalkable(this.x, newY)) {
+            if (GameMap.isWalkable(this.x, newY)) {
                 this.y = newY;
             }
         } else {
@@ -209,11 +209,11 @@ class Principal extends Entity {
                 const newX = this.x + moveX;
                 const newY = this.y + moveY;
                 
-                if (Map.isWalkable(newX, this.y)) {
+                if (GameMap.isWalkable(newX, this.y)) {
                     this.x = newX;
                 }
                 
-                if (Map.isWalkable(this.x, newY)) {
+                if (GameMap.isWalkable(this.x, newY)) {
                     this.y = newY;
                 }
                 

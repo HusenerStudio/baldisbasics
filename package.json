@@ -1,0 +1,16 @@
+{
+  "name": "baldisbasics",
+  "version": "1.0.0",
+  "description": "A 2D top-down web-based version of Baldi's Basics game. This project recreates the core gameplay elements of the original game in a browser-friendly format.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
