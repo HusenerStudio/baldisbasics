@@ -9,6 +9,7 @@ const Game = {
     player: null,
     baldi: null,
     principal: null,
+    firstPrize: null,
     items: [],
     machines: [],
     effects: [],
@@ -21,6 +22,7 @@ const Game = {
     players: {}, // remote players by id
     lastNetSend: 0,
     playerCount: 0,
+    wrongAnswers: 0,
     
     // Camera system
     camera: {
@@ -285,11 +287,13 @@ const Game = {
         // Create player (spawn in main hallway)
         this.player = new Player(17 * 32, 12 * 32);
         
-        // Create Baldi (spawn in a classroom)
-        this.baldi = new Baldi(4 * 32, 3 * 32);
+        // Create Baldi (spawn in the middle hallway)
+        this.baldi = new Baldi(17 * 32, 12 * 32);
         
-        // Create Principal (spawn in principal's office)
-        this.principal = new Principal(4 * 32, 12 * 32);
+        // Create Principal (spawn in main hallway)
+        this.principal = new Principal(17 * 32, 12 * 32);
+        // Create 1st Prize (spawn near cafeteria entrance)
+        this.firstPrize = new FirstPrize(24 * 32, 12 * 32);
         
         // Create items scattered around the school
         this.items = [
@@ -331,6 +335,7 @@ const Game = {
         GameMap.maybeActivateDoor(this.player.x, this.player.y);
         this.baldi.update(this.player);
         this.principal.update(this.player);
+        this.firstPrize.update(this.player);
         
         // Check for item collection
         for (let i = this.items.length - 1; i >= 0; i--) {
@@ -358,9 +363,11 @@ const Game = {
                 // Push characters on hit
                 const hitBaldi = this.rectsOverlap(e.x, e.y, e.w, e.h, this.baldi.x, this.baldi.y, this.baldi.width, this.baldi.height);
                 const hitPrincipal = this.rectsOverlap(e.x, e.y, e.w, e.h, this.principal.x, this.principal.y, this.principal.width, this.principal.height);
+                const hitFirstPrize = this.rectsOverlap(e.x, e.y, e.w, e.h, this.firstPrize.x, this.firstPrize.y, this.firstPrize.width, this.firstPrize.height);
                 const strength = 24; // knockback pixels per hit frame
                 if (hitBaldi) this.applyKnockback(this.baldi, e.vx, e.vy, strength);
                 if (hitPrincipal) this.applyKnockback(this.principal, e.vx, e.vy, strength);
+                if (hitFirstPrize) this.applyKnockback(this.firstPrize, e.vx, e.vy, strength);
 
                 // End if max travel reached
                 if (e.remaining <= 0) {
@@ -446,6 +453,7 @@ const Game = {
         }
         this.baldi.render(this.ctx);
         this.principal.render(this.ctx);
+        this.firstPrize.render(this.ctx);
 
         // Render active effects (e.g., BSODA spray)
         for (const eff of this.effects) {
@@ -624,7 +632,8 @@ const Game = {
                 overlay.remove();
                 this.mathProblemActive = false;
             } else {
-                // Wrong answer - make Baldi angry
+                // Wrong answer - make Baldi angry and increase difficulty
+                this.wrongAnswers += 1;
                 this.baldi.makeAngry();
                 stopLearnAndPlayHang();
                 overlay.remove();

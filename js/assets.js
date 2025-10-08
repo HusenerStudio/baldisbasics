@@ -9,9 +9,17 @@ const Assets = {
     texturePaths: {
         player: 'textures/Stick.png',
         baldi: 'textures/baldi.svg',
-        principal: 'textures/principal.svg',
+        baldiHappy: 'textures/Baldi_Wave0001.png',
+        baldiAngryIdle: 'textures/Baldi_Slap0024.png',
+        baldiAngryMove: 'textures/Baldi_Slap0000.png',
+        principal: 'textures/Principal.png',
+        // 1st Prize directional sprites
+        firstPrizeUp: '1stprize/1PR_90.png',
+        firstPrizeDown: '1stprize/1PR_270.png',
+        firstPrizeLeft: '1stprize/1PR_180.png',
+        firstPrizeRight: '1stprize/1PR_0.png',
         notebook: 'textures/notebook.svg',
-        quarter: 'textures/quarter.svg',
+        quarter: 'textures/Quarter.png',
         energyBar: 'textures/energy_bar.svg',
         // Vending-related textures
         bsoda: 'textures/BSODA.png',
@@ -30,7 +38,8 @@ const Assets = {
     // Audio file paths
     soundPaths: {
         musLearn: 'audios/mus_Learn.ogg',
-        musHang: 'audios/mus_hang.ogg'
+        musHang: 'audios/mus_hang.ogg',
+        balSlap: 'audios/BAL_Slap.ogg'
         ,
         // Door sounds
         doorOpen: 'doors/door_open.ogg',
